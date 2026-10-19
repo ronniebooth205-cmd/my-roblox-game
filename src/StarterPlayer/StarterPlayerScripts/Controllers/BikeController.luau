@@ -160,8 +160,14 @@ local function step(dt: number)
 	local h = stats.Handling
 	local g = stats.Geometry
 
-	local cf = part.CFrame
+	-- Until the server releases the bike it is anchored (infinite mass): apply nothing.
 	local mass = part.AssemblyMass
+	if part.Anchored or mass ~= mass or mass == math.huge or mass <= 0 then
+		zeroActuators()
+		antiGravity.Force = Vector3.zero
+		return
+	end
+	local cf = part.CFrame
 	local com = part.AssemblyCenterOfMass
 	local velocity = part.AssemblyLinearVelocity
 	local omega = part.AssemblyAngularVelocity
@@ -312,12 +318,17 @@ local function step(dt: number)
 
 			-- Forces act in the bike's centre plane so they don't fight the lean controller;
 			-- grip acts at centre-of-mass height so cornering doesn't roll the bike over.
+			-- Drive/brake act partway up towards the centre of mass: the full real lever arm made
+			-- the nose run away faster than anyone can react (see DrivePitchShare).
 			local contact = wheel.Point - right * (wheel.Point - com):Dot(right)
-			local gripPoint = contact + n * (com - contact):Dot(n)
-			local normalAndDrive = n * wheel.Load + along * long
+			local comHeight = (com - contact):Dot(n)
+			local gripPoint = contact + n * comHeight
+			local drivePoint = contact + n * comHeight * (1 - h.DrivePitchShare)
+			local normal = n * wheel.Load
+			local drive = along * long
 			local grip = side * lat
-			netForce += normalAndDrive + grip
-			netTorque += (contact - com):Cross(normalAndDrive) + (gripPoint - com):Cross(grip)
+			netForce += normal + drive + grip
+			netTorque += (contact - com):Cross(normal) + (drivePoint - com):Cross(drive) + (gripPoint - com):Cross(grip)
 
 			wheel.Spin -= vLong / g.WheelRadius * dt
 		else

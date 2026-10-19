@@ -27,7 +27,9 @@ PhysicsConfig.Geometry = {
 	SuspensionTravel = 0.75, -- compression before the bump stop
 	StaticSag = 0.3, -- compression under the bike's own weight on both wheels
 	CastLift = 0.4, -- sphere casts start this far above the mount so kerbs don't start inside them
-	ChassisSize = Vector3.new(1.6, 1.6, 3.0), -- the invisible mass carrier
+	-- The invisible mass carrier. Its size sets the bike's inertia; 2.4 x 4.2 gives a pitch
+	-- inertia close to a real bike-plus-rider (a smaller box made wheelies spin up far too fast).
+	ChassisSize = Vector3.new(1.6, 2.4, 4.2),
 	ChassisDensity = 10,
 	HullSize = Vector3.new(0.9, 1.6, 3.6), -- massless collision box around the battery/body
 	HullOffset = Vector3.new(0, -0.7, 0.1),
@@ -92,18 +94,20 @@ PhysicsConfig.Handling = {
 	RollStiffness = 60,
 	RollDamping = 14,
 
-	-- Wheelies
-	WheelieLift = 1.25, -- throttle torque at full lean-back, as a multiple of G0
-	PassiveLiftShare = 0.35, -- share of WheelieLift available without leaning back
+	-- Wheelies. Tuned with tools/wheelie_sim.py, which replays this exact force model against a
+	-- simulated keyboard player with 0.15-0.25 s reactions; see docs/PHYSICS.md.
+	WheelieLift = 1.0, -- throttle torque at full lean-back, as a multiple of G0
+	PassiveLiftShare = 0.1, -- share of WheelieLift available without leaning back
+	DrivePitchShare = 0.4, -- share of the drive force's real pitch-up torque that is kept
 	LeanShift = 0.12, -- rider weight shift torque per unit of lean input (× G0)
 	RearBrakePitch = 0.9, -- nose-down torque from a full rear brake while wheelieing (× G0)
 	IdealBalanceAngle = 46, -- degrees; centre of the HUD's green zone and of balance assist
-	BalanceAssist = 0.55, -- 0..1 share of the tip-over instability cancelled near the ideal angle
+	BalanceAssist = 0.8, -- 0..1 share of the tip-over instability cancelled near the ideal angle
 	AssistWindow = 25, -- assist only works within this many degrees of the ideal angle
-	PitchDamping = 4.5, -- per second, while on the back wheel
+	PitchDamping = 10, -- per second, while on the back wheel
 	GroundPitchDamping = 1.5,
 	WheelieSteerFactor = 0.55, -- steering authority on one wheel
-	ThrottleResponse = 0.12, -- seconds for the throttle to follow the input
+	ThrottleResponse = 0.15, -- seconds for the throttle to follow the input
 	FallAngle = 80, -- loop out above this pitch
 	WheelieThreshold = 6, -- degrees of pitch that count as a wheelie
 	AirPitchControl = 0.5,

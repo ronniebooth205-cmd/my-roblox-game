@@ -518,11 +518,16 @@ function BikeBuilder.build(bikeId: string, setupIn: BikeStats.BikeSetup?, option
 	model:SetAttribute("SwingarmLength", armLength)
 
 	if opts.Anchored then
+		-- Display models (garage, menu): nothing to sit on, bump into or simulate.
 		for _, part in model:GetDescendants() do
 			if part:IsA("BasePart") then
 				part.Anchored = part == chassis
+				part.CanCollide = false
+				part.CanTouch = false
+				part.CanQuery = false
 			end
 		end
+		seat.Disabled = true
 		chassis.Anchored = true
 	end
 
