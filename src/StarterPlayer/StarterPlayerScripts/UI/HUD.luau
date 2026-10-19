@@ -138,6 +138,22 @@ local function buildSpeedometer()
 	brakeBar.Frame.Size = UDim2.fromScale(1, 1)
 	elements.BrakeBar = brakeBar
 	elements.Speedometer = gauge
+	-- Wheelie-mode indicator just above the gauge.
+	local mode = new("TextLabel", {
+		Name = "WheelieMode",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 0, -8),
+		Size = UDim2.fromOffset(170, 30),
+		BackgroundColor3 = C.Gold,
+		Text = "WHEELIE MODE",
+		TextColor3 = C.AccentText,
+		Font = Theme.Fonts.Display,
+		TextSize = 15,
+		Visible = false,
+		Parent = gauge,
+	})
+	corner(mode, Theme.Radius.Pill)
+	elements.WheelieMode = mode
 end
 
 local function buildBikeInfo()
@@ -435,6 +451,12 @@ function HUD.init(screen: ScreenGui, handlers: { [string]: () -> () })
 	buildPrompt()
 	buildToasts()
 	ClientState.onProfile(setProfile)
+	InputController.onWheelieModeChanged(function(on)
+		elements.WheelieMode.Visible = on
+		if on then
+			HUD.toast("Wheelie mode ON: W lifts the front, rear brake brings it down", "Info")
+		end
+	end)
 	TrickController.onLanded(function(trick)
 		HUD.trickLanded(trick.Name, trick.Points)
 	end)
@@ -508,7 +530,7 @@ end
 function HUD.keyHint(action: string): string
 	local device = InputController.device()
 	if device == "Gamepad" then
-		local pad = { Mount = "X", Recover = "Y", Camera = "LB", Throttle = "RT", Brake = "LT", LeanBack = "Right stick ↓", RearBrake = "A" }
+		local pad = { Mount = "X", Recover = "Y", Camera = "LB", Throttle = "RT", Brake = "LT", LeanBack = "R3", RearBrake = "A" }
 		return pad[action] or "?"
 	elseif device == "Touch" then
 		return ""

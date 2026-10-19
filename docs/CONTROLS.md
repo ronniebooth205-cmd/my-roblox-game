@@ -7,12 +7,13 @@ Keyboard keys can be rebound in **Settings**. Defaults live in `GameConfig.Defau
 | Throttle | W | RT (analogue) | GO |
 | Brake / reverse when stopped | S | LT (analogue) | BRAKE |
 | Steer | A / D | Left stick | ◀ ▶ |
-| Lean back (pop a wheelie) | Left Shift | Right stick down | WHEELIE |
+| Wheelie mode on/off | Left Shift (tap) | R3 (click right stick), or hold right stick down | WHEELIE (tap) |
 | Lean forward | Left Ctrl | Right stick up | LEAN ▲ |
 | Rear brake (bring the front down) | Space | A | REAR |
 | Get on / off, spawn bike | E | X | RIDE / OFF |
 | Recover bike | R | Y | RESET |
-| Camera | C | LB | CAM |
+| Camera mode | C | LB | CAM |
+| Look around | Right mouse drag | Right stick sideways | Drag on empty screen |
 | Headlight | H | D-pad up | LIGHT |
 | Garage | G | D-pad down | 🔧 |
 | Map | M | View/Back | 🗺 |
@@ -22,12 +23,14 @@ Keyboard keys can be rebound in **Settings**. Defaults live in `GameConfig.Defau
 
 ## How to wheelie
 
-1. Ride at walking pace or faster.
-2. Hold **throttle and lean back** together: the front lifts.
-3. Keep leaning back and **feather the throttle** to hold the green zone on the balance meter
-   (right of the screen). More throttle lifts the nose, less lets it drop.
-4. Tap the **rear brake** if it goes too high. Past the red zone you loop out.
-5. Hold a trick button while on one wheel to score tricks; three different tricks in one
+1. Tap **Shift** (or the WHEELIE button) to switch **wheelie mode** on. The rider sits back and a
+   gold WHEELIE MODE label appears above the speedometer.
+2. Press **W**: the front lifts. It pops at any speed.
+3. Feather **W** to hold the green zone on the balance meter: more lifts the nose, less lets it drop.
+4. Tap the **rear brake** (Space) if it goes too high. Past the red zone you loop out.
+5. Steer with A/D on one wheel.
+6. Tap **Shift** again to turn wheelie mode off for normal riding.
+7. Hold a trick button while on one wheel to score tricks; three different tricks in one
    wheelie is a combo.
 
 Wheelie assist (Settings) makes the balance point more forgiving; the starter bike is the

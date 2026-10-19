@@ -89,7 +89,9 @@ local function updatePrompt()
 		elseif BikeController.state.Crashed then
 			HUD.setHint(string.format("[%s] Recover bike", recover))
 		else
-			HUD.setHint(string.format("[%s] Get off   ·   [%s] Recover   ·   [%s] Camera", mount, recover, camera))
+			local wheelie = HUD.keyHint("LeanBack")
+			local mode = if InputController.state.WheelieMode then "ON" else "off"
+			HUD.setHint(string.format("[%s] Wheelie mode (%s)   ·   [%s] Get off   ·   [%s] Recover   ·   [%s] Camera", wheelie, mode, mount, recover, camera))
 		end
 	elseif BikeController.state.Crashed or os.clock() - crashTime < GameConfig.Spawning.AutoRecoverAfterCrash then
 		HUD.setPrompt("RECOVER BIKE")

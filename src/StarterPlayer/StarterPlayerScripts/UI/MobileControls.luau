@@ -1,7 +1,7 @@
 --!strict
 -- StarterPlayer > StarterPlayerScripts > UI > MobileControls (ModuleScript)
--- Touch riding controls: big steering pads on one side; throttle, brake, wheelie (lean back),
--- lean forward and rear brake on the other; small camera/trick/mount/recover buttons along the
+-- Touch riding controls: big steering pads on one side; throttle, brake, the wheelie-mode
+-- toggle, lean forward and rear brake on the other; small camera/trick/mount/recover buttons along the
 -- top edge. Buttons are sized from the shorter screen side, so they stay thumb-sized on phones
 -- and tablets in portrait or landscape, and sit inside the device safe area. Multi-touch:
 -- every button tracks its own touch, so you can steer, throttle and lean at once.
@@ -30,7 +30,6 @@ local buttons: { { Button: TextButton, Spec: { [string]: any } } } = {}
 local RIDE_BUTTONS = {
 	{ Name = "Throttle", Label = "GO", Side = "Right", X = 0.15, Y = 0.15, Size = 1.25, Action = "Throttle", Colour = C.Accent, TextColour = C.AccentText },
 	{ Name = "Brake", Label = "BRAKE", Side = "Right", X = 1.55, Y = 0.1, Size = 0.85, Action = "Brake", Colour = C.Danger },
-	{ Name = "Wheelie", Label = "WHEELIE", Side = "Right", X = 0.25, Y = 1.55, Size = 0.95, Action = "LeanBack", Colour = C.Gold, TextColour = C.AccentText },
 	{ Name = "RearBrake", Label = "REAR", Side = "Right", X = 1.4, Y = 1.15, Size = 0.75, Action = "RearBrake", Colour = C.SurfaceRaised },
 	{ Name = "LeanForward", Label = "LEAN ▲", Side = "Right", X = 1.3, Y = 2.05, Size = 0.7, Action = "LeanForward", Colour = C.SurfaceRaised },
 	{ Name = "SteerLeft", Label = "◀", Side = "Left", X = 0.15, Y = 0.3, Size = 1.15, Action = "SteerLeft", Colour = C.SurfaceRaised },
@@ -151,6 +150,30 @@ function MobileControls.init(screen: ScreenGui)
 		end
 	end)
 	table.insert(buttons, { Button = trickButton, Spec = trickSpec })
+	-- Wheelie mode is a tap-to-toggle switch, lit while on.
+	local wheelieSpec = { Name = "Wheelie", Side = "Right", X = 0.25, Y = 1.55, Size = 0.95 }
+	local wheelie = new("TextButton", {
+		Name = "Wheelie",
+		Text = "WHEELIE\nOFF",
+		Font = Theme.Fonts.Display,
+		TextColor3 = C.Text,
+		BackgroundColor3 = C.SurfaceRaised,
+		BackgroundTransparency = 0.15,
+		AutoButtonColor = false,
+		Selectable = false,
+		Parent = ridingGroup,
+	})
+	Components.corner(wheelie, Theme.Radius.Pill)
+	Components.stroke(wheelie, C.Gold, 2, 0.2)
+	wheelie.Activated:Connect(function()
+		InputController.setWheelieMode(not InputController.state.WheelieMode)
+	end)
+	InputController.onWheelieModeChanged(function(on)
+		wheelie.Text = if on then "WHEELIE\nON" else "WHEELIE\nOFF"
+		wheelie.BackgroundColor3 = if on then C.Gold else C.SurfaceRaised
+		wheelie.TextColor3 = if on then C.AccentText else C.Text
+	end)
+	table.insert(buttons, { Button = wheelie, Spec = wheelieSpec })
 	local selector = Components.button(ridingGroup, "", "Secondary", function()
 		InputController.firePress("TrickNext")
 		task.defer(MobileControls.refreshTrick)
@@ -179,7 +202,7 @@ end
 function MobileControls.setVisible(visible: boolean)
 	root.Visible = visible
 	if not visible then
-		for _, action in { "Throttle", "Brake", "LeanBack", "LeanForward", "RearBrake", "SteerLeft", "SteerRight" } do
+		for _, action in { "Throttle", "Brake", "LeanForward", "RearBrake", "SteerLeft", "SteerRight" } do
 			InputController.setTouch(action, 0)
 		end
 	end

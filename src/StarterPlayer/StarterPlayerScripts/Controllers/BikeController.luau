@@ -352,6 +352,14 @@ local function step(dt: number)
 	local heading = look - groundNormal * look:Dot(groundNormal)
 	heading = if heading.Magnitude > 0.05 then heading.Unit else -up
 	netTorque -= heading * netTorque:Dot(heading)
+	-- On the back wheel alone, that tyre's sideways grip pushes back against any turn (it sits
+	-- behind the centre of mass). Riders steer wheelies with lean and the bars, so here the
+	-- steering controller owns yaw too; the grip still bends the bike's path to match.
+	if s.InWheelie then
+		netTorque -= groundNormal * netTorque:Dot(groundNormal)
+	end
+	-- Speed along the ground, which stays right when the nose is pointing at the sky.
+	local groundSpeed = (velocity - groundNormal * velocity:Dot(groundNormal)):Dot(heading)
 
 	-- Rolling resistance and air drag.
 	local anyContact = s.FrontContact or s.RearContact
@@ -404,7 +412,10 @@ local function step(dt: number)
 	local yawRate = omega:Dot(groundNormal)
 	if anyContact then
 		local steerFactor = if s.InWheelie then h.WheelieSteerFactor else 1
-		local targetYawRate = -(forwardSpeed * math.tan(s.SteerAngle) / g.Wheelbase) * steerFactor
+		-- Steering angle is reduced with speed above; in a wheelie use the full input angle so
+		-- the bars still feel responsive with the front wheel in the air.
+		local steerAngle = if s.InWheelie then steerTarget * math.rad(h.MaxSteerAngle) / (1 + math.abs(groundSpeed) / (h.SteerFalloffSpeed * 1.5)) else s.SteerAngle
+		local targetYawRate = -(groundSpeed * math.tan(steerAngle) / g.Wheelbase) * steerFactor
 		netTorque += groundNormal * inertiaYaw * h.YawGain * (targetYawRate - yawRate)
 	else
 		netTorque -= groundNormal * inertiaYaw * 2 * yawRate
@@ -413,7 +424,7 @@ local function step(dt: number)
 	-- Roll: lean into turns (and stand the bike up when stopped), around the ground heading so
 	-- it works the same in a wheelie. Inertia around that axis blends roll and yaw with pitch.
 	local maxLean = math.rad(h.MaxLeanAngle)
-	local targetLean = if anyContact then math.clamp(math.atan(forwardSpeed * yawRate / gravity), -maxLean, maxLean) else 0
+	local targetLean = if anyContact then math.clamp(math.atan(groundSpeed * yawRate / gravity), -maxLean, maxLean) else 0
 	local rollRad = math.rad(s.Roll)
 	local rollRate = -omega:Dot(heading)
 	local rollGain = if anyContact then 1 else 0.5

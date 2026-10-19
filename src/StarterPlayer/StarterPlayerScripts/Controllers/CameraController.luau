@@ -1,7 +1,9 @@
 --!strict
 -- StarterPlayer > StarterPlayerScripts > Controllers > CameraController (ModuleScript)
 -- Riding cameras: Chase (default), Close, FirstPerson, Cinematic (side-on, good for filming
--- wheelies) and FreeLook (orbit with the mouse/right stick). Follows the bike's heading with
+-- wheelies) and FreeLook. In every mode you can look around (right mouse drag, right stick
+-- sideways, or a drag on a touch screen); the view drifts back behind the bike when you let
+-- go, except in FreeLook where it stays put. Follows the bike's heading with
 -- smoothing rather than its exact orientation, so lean and suspension never shake the view.
 -- During a wheelie the camera rises and looks further ahead so the road stays visible.
 -- Collision rays stop it going through walls. On foot the default Roblox camera is restored.
@@ -29,7 +31,9 @@ local scene: (() -> CFrame)? = nil
 local smoothedYaw: number? = nil
 local smoothedPos: Vector3? = nil
 local smoothedLift = 0
-local orbitYaw, orbitPitch = 0, math.rad(12)
+local orbitYaw, orbitPitch = 0, 0
+local lastLookInput = 0
+local RECENTRE_DELAY = 1.5
 local renderBound = false
 local modeListeners: { (mode: string) -> () } = {}
 local rayParams = RaycastParams.new()
@@ -86,33 +90,39 @@ local function update(dt: number)
 	-- The rear axle stays on the road in a wheelie, so frame from there rather than the chassis.
 	local base = chassis.Position - Vector3.new(0, 1.2, 0)
 
+	-- Ease the look-around offset back behind the bike after a moment without input.
+	if CameraController.mode ~= "FreeLook" and os.clock() - lastLookInput > RECENTRE_DELAY then
+		local k = 1 - math.exp(-dt / 0.35)
+		orbitYaw -= orbitYaw * k
+		orbitPitch -= orbitPitch * k
+	end
+	local look = CFrame.Angles(0, orbitYaw, 0) * CFrame.Angles(-orbitPitch, 0, 0)
+
 	local mode = CameraController.mode
 	local target: CFrame
 	local fov = cfg.Chase.FovBase
 	if mode == "FirstPerson" then
 		local head = character and character:FindFirstChild("Head") :: BasePart?
 		local eye = if head then head.Position + Vector3.new(0, 0.2, 0) else cf.Position + Vector3.new(0, 3, 0)
-		-- Pitch follows the bike a little so wheelies are felt, but never fully.
-		local pitch = math.rad(math.clamp(s.Pitch, -20, 60)) * 0.45
-		target = CFrame.new(eye) * heading * CFrame.Angles(pitch - math.rad(6), 0, 0)
+		-- Follow the bike's own pitch and some of its lean so bumps, suspension and wheelies are
+		-- felt; very steep wheelies are eased off so the road stays in view.
+		local pitch = s.Pitch
+		local followPitch = if pitch > 25 then 25 + (pitch - 25) * 0.5 else pitch
+		local lean = math.rad(s.Roll) * 0.5
+		target = CFrame.new(eye) * heading * CFrame.Angles(math.rad(followPitch) - math.rad(6), 0, 0) * CFrame.Angles(0, 0, lean) * look
 		fov = cfg.FirstPersonFov
 	elseif mode == "Cinematic" then
 		local c = cfg.Cinematic
-		local offset = heading:VectorToWorldSpace(Vector3.new(c.Side, c.Height, c.Behind))
+		local offset = (heading * look):VectorToWorldSpace(Vector3.new(c.Side, c.Height, c.Behind))
 		local desired = base + offset
 		target = CFrame.lookAt(collide(base + Vector3.new(0, 1.5, 0), desired), base + Vector3.new(0, 1.5 + smoothedLift, 0))
 		fov = 55
-	elseif mode == "FreeLook" then
-		local rot = heading * CFrame.Angles(0, orbitYaw, 0) * CFrame.Angles(-orbitPitch, 0, 0)
-		local focus = base + Vector3.new(0, cfg.Chase.LookHeight, 0)
-		local desired = focus + rot:VectorToWorldSpace(Vector3.new(0, 0, cfg.Chase.Distance))
-		target = CFrame.lookAt(collide(focus, desired), focus)
 	else
-		local m = if mode == "Close" then cfg.Close else cfg.Chase
+		local m = if mode == "Close" then cfg.Close elseif mode == "FreeLook" then cfg.Chase else cfg.Chase
 		local distance = m.Distance + speedFrac * cfg.SpeedZoom + smoothedLift * 1.5
 		local height = m.Height + smoothedLift * cfg.WheelieLift
-		local focus = base + Vector3.new(0, m.LookHeight + smoothedLift * 1.2, 0) + heading.LookVector * (2 + smoothedLift * 4)
-		local desired = base + heading:VectorToWorldSpace(Vector3.new(0, height, distance))
+		local focus = base + Vector3.new(0, m.LookHeight + smoothedLift * 1.2, 0) + (heading * look).LookVector * (2 + smoothedLift * 4) * math.cos(orbitYaw)
+		local desired = base + (heading * look):VectorToWorldSpace(Vector3.new(0, height, distance))
 		target = CFrame.lookAt(collide(focus, desired), focus)
 		fov = m.FovBase + (m.FovMax - m.FovBase) * speedFrac
 	end
@@ -122,7 +132,8 @@ local function update(dt: number)
 
 	-- Smooth the camera's position a touch (rotation already follows the smoothed yaw).
 	local pos = target.Position
-	if smoothedPos and (smoothedPos - pos).Magnitude < 30 then
+	-- First person stays locked to the head so every bump comes through.
+	if mode ~= "FirstPerson" and smoothedPos and (smoothedPos - pos).Magnitude < 30 then
 		pos = smoothedPos:Lerp(pos, 1 - math.exp(-dt / 0.05))
 	end
 	smoothedPos = pos
@@ -157,17 +168,39 @@ end
 
 function CameraController.init()
 	UserInputService.InputChanged:Connect(function(input: InputObject, processed: boolean)
-		if processed or not riding or CameraController.mode ~= "FreeLook" then
+		if not riding or scene then
 			return
 		end
 		local sens = CameraController.sensitivity
+		local moved = false
 		if input.UserInputType == Enum.UserInputType.MouseMovement and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
 			orbitYaw -= input.Delta.X * 0.006 * sens
-			orbitPitch = math.clamp(orbitPitch + input.Delta.Y * 0.004 * sens, math.rad(-10), math.rad(60))
-		elseif input.UserInputType == Enum.UserInputType.Touch and input.Position.X > camera().ViewportSize.X * 0.35 and input.Position.X < camera().ViewportSize.X * 0.65 then
+			orbitPitch = math.clamp(orbitPitch + input.Delta.Y * 0.004 * sens, math.rad(-20), math.rad(55))
+			moved = true
+		elseif input.UserInputType == Enum.UserInputType.Touch and not processed then
+			-- Drags on empty screen (not on the riding buttons) look around.
 			orbitYaw -= input.Delta.X * 0.008 * sens
+			orbitPitch = math.clamp(orbitPitch + input.Delta.Y * 0.005 * sens, math.rad(-20), math.rad(55))
+			moved = true
 		elseif input.KeyCode == Enum.KeyCode.Thumbstick2 and math.abs(input.Position.X) > 0.2 then
-			orbitYaw -= input.Position.X * 0.05 * sens
+			-- Right stick sideways looks around (its up/down is the rider's lean).
+			orbitYaw -= input.Position.X * 0.06 * sens
+			moved = true
+		end
+		if moved then
+			orbitYaw = (orbitYaw + math.pi) % (2 * math.pi) - math.pi
+			lastLookInput = os.clock()
+		end
+	end)
+	-- Right-click drag shouldn't open anything or move the mouse cursor away mid-ride.
+	UserInputService.InputBegan:Connect(function(input)
+		if riding and input.UserInputType == Enum.UserInputType.MouseButton2 then
+			UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton2 then
+			UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 		end
 	end)
 end
@@ -176,7 +209,7 @@ function CameraController.setRiding(isRiding: boolean)
 	riding = isRiding
 	smoothedYaw = nil
 	smoothedPos = nil
-	orbitYaw = 0
+	orbitYaw, orbitPitch = 0, 0
 	if isRiding or scene then
 		bind()
 	else
