@@ -245,6 +245,13 @@ InputController.onAction(function(action)
 	end
 end)
 
+-- The counter inside Volt Customs opens the garage.
+game:GetService("ProximityPromptService").PromptTriggered:Connect(function(prompt)
+	if prompt.Name == "GaragePrompt" then
+		UIController.open("Garage")
+	end
+end)
+
 Remotes.event("BikeSpawned").OnClientEvent:Connect(function(_model, reason)
 	if reason == "Recovered" then
 		BikeController.clearCrash()

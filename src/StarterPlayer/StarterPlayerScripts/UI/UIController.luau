@@ -50,6 +50,7 @@ end
 local function refreshInputGate()
 	local open = anyOpen()
 	BikeController.setInputEnabled(not open)
+	HUD.root().Visible = not MainMenu.isOpen()
 	MobileControls.setVisible(riding and touchLayout and not open)
 	if open then
 		ContextActionService:BindActionAtPriority("SurronCloseMenu", function(_, state)
