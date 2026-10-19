@@ -347,7 +347,11 @@ local function step(dt: number)
 	-- several times what the lean controller can hold). Real riders balance that with steering
 	-- and body weight; here the roll controller below does the balancing, so the contact forces'
 	-- roll torque is removed and lean is owned by the controller. Collisions still roll it.
-	netTorque -= look * netTorque:Dot(look)
+	-- Lean is measured around the bike's heading along the ground, not its own nose, which points
+	-- up at the sky in a wheelie.
+	local heading = look - groundNormal * look:Dot(groundNormal)
+	heading = if heading.Magnitude > 0.05 then heading.Unit else -up
+	netTorque -= heading * netTorque:Dot(heading)
 
 	-- Rolling resistance and air drag.
 	local anyContact = s.FrontContact or s.RearContact
@@ -373,7 +377,11 @@ local function step(dt: number)
 	if s.RearContact then
 		local leanBack = math.max(s.Lean, 0)
 		local liftShare = h.PassiveLiftShare + (1 - h.PassiveLiftShare) * leanBack
-		pitchTorque += s.Throttle * power * torqueCurve * h.WheelieLift * liftShare * g0
+		-- Lift mostly survives at speed (the motor still has torque to spare for the wheel) and
+		-- is boosted while the front is low so a wheelie pops quickly, then settles.
+		local liftCurve = math.max(torqueCurve, h.HighSpeedLift)
+		local pop = 1 + (h.PopBoost - 1) * math.max(0, 1 - math.max(s.Pitch, 0) / h.PopAngle)
+		pitchTorque += s.Throttle * power * liftCurve * pop * h.WheelieLift * liftShare * g0
 		pitchTorque += s.Lean * h.LeanShift * g0
 		if not s.FrontContact and s.Pitch > 0 then
 			pitchTorque -= s.RearBrake * h.RearBrakePitch * g0
@@ -402,14 +410,17 @@ local function step(dt: number)
 		netTorque -= groundNormal * inertiaYaw * 2 * yawRate
 	end
 
-	-- Roll: lean into turns (and stand the bike up when stopped).
+	-- Roll: lean into turns (and stand the bike up when stopped), around the ground heading so
+	-- it works the same in a wheelie. Inertia around that axis blends roll and yaw with pitch.
 	local maxLean = math.rad(h.MaxLeanAngle)
 	local targetLean = if anyContact then math.clamp(math.atan(forwardSpeed * yawRate / gravity), -maxLean, maxLean) else 0
 	local rollRad = math.rad(s.Roll)
-	local rollRate = -omega:Dot(look)
+	local rollRate = -omega:Dot(heading)
 	local rollGain = if anyContact then 1 else 0.5
-	local rollTorque = inertiaRoll * rollGain * (h.RollStiffness * (targetLean - rollRad) - h.RollDamping * rollRate)
-	netTorque -= look * rollTorque
+	local cosPitch = math.cos(math.rad(s.Pitch))
+	local inertiaHeading = inertiaRoll * cosPitch * cosPitch + inertiaYaw * (1 - cosPitch * cosPitch)
+	local rollTorque = inertiaHeading * rollGain * (h.RollStiffness * (targetLean - rollRad) - h.RollDamping * rollRate)
+	netTorque -= heading * rollTorque
 
 	driveForce.Force = netForce
 	controlTorque.Torque = netTorque

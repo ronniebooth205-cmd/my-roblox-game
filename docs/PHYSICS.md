@@ -23,7 +23,8 @@ All numbers are in studs and seconds; 1 stud = 0.32 m (`GameConfig.Units`).
 - **Motor.** Full torque at low speed, fading with `1 - (v/top)^2.2`. Regen braking off the
   throttle. Battery drains with throttle and limits power below 5%.
 - **Balance.** Ground forces are vertical, so a leaning bike would tip like a pencil on its point.
-  Their roll torque is removed and the roll controller owns lean (a rider balances the same way,
+  Their roll torque (around the bike's heading along the ground, so it holds in wheelies too) is
+  removed and the roll controller owns lean (a rider balances the same way,
   with steering and body weight). Collisions can still knock the bike over.
 - **Steering.** A yaw-rate controller follows the bicycle model (`v·tan(steer)/wheelbase`),
   steering angle shrinks with speed, and a roll controller leans the bike into turns
@@ -37,7 +38,7 @@ contact forces and gravity do the rest:
 | Torque | Size | Notes |
 | --- | --- | --- |
 | Drive force | 40% of its real lever arm (`DrivePitchShare`) | The full lever arm made the nose run away in 0.25 s |
-| Motor lift | `throttle × torqueCurve × WheelieLift × G0 × liftShare` | `liftShare` is 10% sitting, 100% leaning back |
+| Motor lift | `throttle × max(torqueCurve, HighSpeedLift) × pop × WheelieLift × G0 × liftShare` | `liftShare` is 10% sitting, 100% leaning back; `pop` = `PopBoost` at 0° fading to 1 by `PopAngle` |
 | Weight shift | `lean × LeanShift × G0` | |
 | Rear brake | `−RearBrakePitch × G0` | only while the front is up |
 | Balance assist | `−BalanceAssist × m·g·arm × (pitch − ideal)` | within ±25° of the ideal angle only |
@@ -62,11 +63,14 @@ change over `CrashImpactSpeed`.
 Current results:
 
 ```
-StreetERide    30° after 0.87 s, loop-out 1.37 s if held, held 6/6, lands 0.52 s after rear brake
-LightBeeStyle  30° after 0.72 s, loop-out 1.10 s if held, held 6/6, lands 0.53 s
-UltraEMoto     30° after 0.67 s, loop-out 1.03 s if held, held 4/6, lands 0.50 s
-MXElectricPro  30° after 0.65 s, loop-out 1.00 s if held, held 4/6, lands 0.43 s
+StreetERide    30° after 0.50 s (0.65 s at 75% speed), held 6/6, lands 0.52 s after rear brake
+LightBeeStyle  30° after 0.50 s (0.63 s at 75% speed), held 6/6, lands 0.60 s
+UltraEMoto     30° after 0.50 s (0.67 s at 75% speed), held 4/6, lands 0.58 s
+MXElectricPro  30° after 0.50 s (0.70 s at 75% speed), held 4/6, lands 0.45 s
 ```
+
+The simulation is side-on only. It can't see leaning, which is how the first build shipped a
+bike that tipped over sideways; lean balance is checked in Studio.
 
 ## Visuals vs physics
 

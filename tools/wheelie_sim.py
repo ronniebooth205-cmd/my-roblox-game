@@ -24,27 +24,28 @@ DAMPING_RATIO, BUMP_STOP, STOP_SPEED = 0.55, 8, 1.2
 DEFAULT = dict(TopSpeed=45, MaxAccel=28, BrakeDecel=55, FrontBrakeShare=0.65, RegenDecel=5, Grip=1.05,
                WheelieLift=1.0, PassiveLiftShare=0.1, DrivePitchShare=0.4, LeanShift=0.12, RearBrakePitch=0.9,
                IdealBalanceAngle=46, BalanceAssist=0.8, AssistWindow=25, PitchDamping=10, GroundPitchDamping=1.5,
-               ThrottleResponse=0.15, FallAngle=80, WheelieThreshold=6)
+               ThrottleResponse=0.15, FallAngle=80, WheelieThreshold=6,
+               PopBoost=2.8, PopAngle=20, HighSpeedLift=0.8)
 
 BIKES = {
-    "StreetERide": dict(TopSpeed=45, MaxAccel=26, WheelieLift=1.0, BalanceAssist=0.9, PitchDamping=12,
+    "StreetERide": dict(TopSpeed=45, MaxAccel=26, WheelieLift=1.15, BalanceAssist=0.9, PitchDamping=10,
                         ThrottleResponse=0.2, IdealBalanceAngle=44),
-    "LightBeeStyle": dict(TopSpeed=66, MaxAccel=34, WheelieLift=1.05, BalanceAssist=0.9, PitchDamping=10,
+    "LightBeeStyle": dict(TopSpeed=66, MaxAccel=34, WheelieLift=1.3, BalanceAssist=0.9, PitchDamping=12,
                           ThrottleResponse=0.2, IdealBalanceAngle=46),
-    "UltraEMoto": dict(TopSpeed=77, MaxAccel=44, WheelieLift=0.95, BalanceAssist=0.9, PitchDamping=10,
+    "UltraEMoto": dict(TopSpeed=77, MaxAccel=44, WheelieLift=1.15, BalanceAssist=0.9, PitchDamping=14,
                        ThrottleResponse=0.12, RearBrakePitch=1.0, IdealBalanceAngle=48),
-    "MXElectricPro": dict(TopSpeed=84, MaxAccel=50, WheelieLift=0.95, BalanceAssist=0.75, PitchDamping=10,
+    "MXElectricPro": dict(TopSpeed=84, MaxAccel=50, WheelieLift=1.0, BalanceAssist=0.75, PitchDamping=12,
                           ThrottleResponse=0.12, RearBrakePitch=1.25, BrakeDecel=65, IdealBalanceAngle=50, Grip=1.12),
 }
 
 
 class Bike:
-    def __init__(self, h):
+    def __init__(self, h, speed=0.0):
         g = GEOMETRY
         self.h, self.m = h, 1.0
         self.inertia = self.m / 12 * (CHASSIS[1] ** 2 + CHASSIS[2] ** 2)
         self.x, self.y, self.th = 0.0, g["WheelRadius"] + g["SuspensionRest"] - g["StaticSag"] + g["MountDrop"], 0.0
-        self.vx = self.vy = self.w = 0.0
+        self.vx, self.vy, self.w = speed, 0.0, 0.0
         self.comp = {"F": 0.0, "R": 0.0}
         self.throttle = self.lean = 0.0
         self.force, self.torque = (0.0, 0.0), 0.0
@@ -122,7 +123,9 @@ class Bike:
         tp = 0.0
         if self.rear:
             lift_share = h["PassiveLiftShare"] + (1 - h["PassiveLiftShare"]) * max(self.lean, 0)
-            tp += self.throttle * curve * h["WheelieLift"] * lift_share * g0 + self.lean * h["LeanShift"] * g0
+            lift_curve = max(curve, h["HighSpeedLift"])
+            pop = 1 + (h["PopBoost"] - 1) * max(0.0, 1 - max(self.pitch, 0) / h["PopAngle"])
+            tp += self.throttle * lift_curve * pop * h["WheelieLift"] * lift_share * g0 + self.lean * h["LeanShift"] * g0
             if not self.front and self.pitch > 0:
                 tp -= rear_brake * h["RearBrakePitch"] * g0
                 off = self.pitch - h["IdealBalanceAngle"]
@@ -142,15 +145,15 @@ class Bike:
         self.th += self.w * dt
 
 
-def simulate(h, policy, seconds):
-    bike, t, out, history = Bike(h), 0.0, [], []
+def simulate(h, policy, seconds, speed=0.0):
+    bike, t, out, history = Bike(h, speed), 0.0, [], []
     while t < seconds:
         bike.control(1 / 60, *policy(t, history))
         for _ in range(4):
             bike.integrate(1 / 240)
         t += 1 / 60
         history.append(bike.pitch)
-        out.append((t, bike.pitch, bike.front, bike.rear))
+        out.append((t, bike.pitch, bike.front, bike.rear, bike.vx))
         if bike.pitch > h["FallAngle"] or bike.pitch < -30:
             break
     return out
@@ -181,12 +184,14 @@ def report(name, overrides):
             held = [r for r in run if r[0] > 3]
             if run[-1][0] > 14.9 and held and all(not r[2] and r[3] for r in held):
                 holds += 1
+    fast = simulate(h, lambda t, hist: (1, 1, 0, 0), 4, speed=h["TopSpeed"] * 0.75)
+    t30_fast = next((r[0] for r in fast if r[1] > 30), None)
     brake_at = (t30 or 0.6) + 0.15
     landing = simulate(h, lambda t, hist: (1, 1, 0, 0) if t < brake_at else (0, 0, 1, 0), 5)
     land = next((r[0] - brake_at for r in landing if r[0] > brake_at and r[2]), None)
-    ok = no_lean < 10 and t30 is not None and holds >= 4 and land is not None
+    ok = no_lean < 10 and t30 is not None and t30_fast is not None and holds >= 4 and land is not None
     print(f"{'PASS' if ok else 'FAIL'} {name:14s} throttle-only max {no_lean:4.1f} deg | 30 deg after "
-          f"{t30 and round(t30, 2)} s, loop-out after {t_loop and round(t_loop, 2)} s if held | "
+          f"{t30 and round(t30, 2)} s ({t30_fast and round(t30_fast, 2)} s at 75% speed), loop-out after {t_loop and round(t_loop, 2)} s if held | "
           f"held by simulated player {holds}/6 | lands {land and round(land, 2)} s after rear brake")
     return ok
 
