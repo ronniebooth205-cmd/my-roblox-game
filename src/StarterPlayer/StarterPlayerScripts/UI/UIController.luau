@@ -138,7 +138,8 @@ function UIController.init(handlers: { [string]: () -> () })
 		Name = "SurronUI",
 		ResetOnSpawn = false,
 		IgnoreGuiInset = true,
-		ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets,
+		-- Keep clear of Roblox's own top-bar buttons as well as notches.
+		ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		Parent = player:WaitForChild("PlayerGui"),
 	})

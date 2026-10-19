@@ -449,6 +449,13 @@ function BikeService._onOccupantChanged(owner: Player, model: Model, seat: Seat)
 			chassis:SetNetworkOwner(owner)
 		end
 		model:SetAttribute("RiderUserId", owner.UserId)
+		-- Normally the rider's client asks for the bike to be released once it is simulating it.
+		-- If that message never arrives, release it anyway so the bike can't stay stuck.
+		task.delay(1.5, function()
+			if model.Parent and seat.Occupant == occupant and chassis.Anchored then
+				BikeService.release(owner)
+			end
+		end)
 		removeRiderIK(occupant)
 		addRiderIK(character, occupant, model)
 		owner:SetAttribute("Riding", true)

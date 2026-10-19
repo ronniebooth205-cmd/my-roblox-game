@@ -103,20 +103,42 @@ local function updatePrompt()
 	end
 end
 
+-- Runs one part of the riding setup; a failure is reported on screen instead of silently
+-- leaving the rest (and the anchored bike) stuck.
+local function setupStep(name: string, fn: () -> ())
+	local ok, err = pcall(fn)
+	if not ok then
+		warn(string.format("[ClientMain] riding setup failed at %s: %s", name, tostring(err)))
+		HUD.toast(string.format("Riding setup error (%s): %s", name, tostring(err)), "Error")
+	end
+end
+
 local function startRiding(model: Model)
-	local profile = ClientState.profile
-	local bikeId = model:GetAttribute("BikeId") :: string
-	local setup = profile and profile.BikeSetups[bikeId]
-	local stats = BikeStats.compute(bikeId, setup)
+	if riding and ridingModel == model then
+		return
+	end
 	riding = true
 	ridingModel = model
-	BikeController.start(model, stats, ClientState.settings.WheelieAssist)
-	InputController.setRiding(true)
-	CameraController.setRiding(true)
-	setCharacterControls(false)
-	UIController.setRiding(true)
+	setupStep("bike physics", function()
+		local profile = ClientState.profile
+		local bikeId = model:GetAttribute("BikeId") :: string
+		local setup = profile and profile.BikeSetups[bikeId]
+		BikeController.start(model, BikeStats.compute(bikeId, setup), ClientState.settings.WheelieAssist)
+	end)
 	-- The server keeps the bike anchored until we're simulating it.
 	bikeAction:FireServer("Release")
+	setupStep("controls", function()
+		InputController.setRiding(true)
+	end)
+	setupStep("camera", function()
+		CameraController.setRiding(true)
+	end)
+	setupStep("character", function()
+		setCharacterControls(false)
+	end)
+	setupStep("HUD", function()
+		UIController.setRiding(true)
+	end)
 	updatePrompt()
 end
 
@@ -126,11 +148,19 @@ local function stopRiding()
 	end
 	riding = false
 	ridingModel = nil
-	BikeController.stop()
-	InputController.setRiding(false)
-	CameraController.setRiding(false)
-	setCharacterControls(true)
-	UIController.setRiding(false)
+	setupStep("stop bike", BikeController.stop)
+	setupStep("stop controls", function()
+		InputController.setRiding(false)
+	end)
+	setupStep("stop camera", function()
+		CameraController.setRiding(false)
+	end)
+	setupStep("stop character", function()
+		setCharacterControls(true)
+	end)
+	setupStep("stop HUD", function()
+		UIController.setRiding(false)
+	end)
 	updatePrompt()
 end
 
@@ -343,10 +373,23 @@ local sendInterval = 1 / GameConfig.Remote.StateSendRate
 local sinceSend = 0
 local promptTimer = 0
 RunService.Heartbeat:Connect(function(dt)
-	HUD.update(dt)
+	setupStep("HUD update", function()
+		HUD.update(dt)
+	end)
 	promptTimer += dt
 	if promptTimer > 0.5 then
 		promptTimer = 0
+		-- Backup for Humanoid.Seated: if we're sitting on our own bike (or got off) and the event
+		-- was missed, catch up here.
+		local h = humanoid()
+		local seat = h and h.SeatPart
+		local seatModel = seat and seat:FindFirstAncestorOfClass("Model")
+		local onOwnBike = seatModel ~= nil and seatModel:GetAttribute("OwnerUserId") == player.UserId
+		if onOwnBike and (not riding or ridingModel ~= seatModel) then
+			startRiding(seatModel :: Model)
+		elseif riding and not onOwnBike then
+			stopRiding()
+		end
 		updatePrompt()
 	end
 	if not riding then
