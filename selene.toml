@@ -1,0 +1,3 @@
+# selene (https://kampfkarren.github.io/selene/) with the Roblox standard library.
+# roblox.yml is generated: refresh it with `selene update-roblox-std` when Roblox adds new APIs.
+std = "roblox"
