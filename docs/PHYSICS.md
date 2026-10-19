@@ -22,6 +22,9 @@ All numbers are in studs and seconds; 1 stud = 0.32 m (`GameConfig.Units`).
   grip. Forces act in the bike's centre plane so they don't fight the lean controller.
 - **Motor.** Full torque at low speed, fading with `1 - (v/top)^2.2`. Regen braking off the
   throttle. Battery drains with throttle and limits power below 5%.
+- **Balance.** Ground forces are vertical, so a leaning bike would tip like a pencil on its point.
+  Their roll torque is removed and the roll controller owns lean (a rider balances the same way,
+  with steering and body weight). Collisions can still knock the bike over.
 - **Steering.** A yaw-rate controller follows the bicycle model (`v·tan(steer)/wheelbase`),
   steering angle shrinks with speed, and a roll controller leans the bike into turns
   (`atan(v·yawRate/g)`). Steering keeps 55% authority on one wheel.

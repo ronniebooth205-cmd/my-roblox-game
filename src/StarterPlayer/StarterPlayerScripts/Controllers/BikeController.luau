@@ -342,6 +342,13 @@ local function step(dt: number)
 	s.MotorLoad = math.clamp(driveUsed / math.max(mass * h.MaxAccel, 1), 0, 1)
 	s.Battery = math.clamp(s.Battery + regenEnergy / (mass * 4000) * PhysicsConfig.Battery.RegenShare * dt, 0, 1)
 
+	-- When the bike leans, the ground's push on the tyres no longer passes under the centre of
+	-- mass, so on its own it tips the bike over like a pencil on its point (~m·g·h per radian,
+	-- several times what the lean controller can hold). Real riders balance that with steering
+	-- and body weight; here the roll controller below does the balancing, so the contact forces'
+	-- roll torque is removed and lean is owned by the controller. Collisions still roll it.
+	netTorque -= look * netTorque:Dot(look)
+
 	-- Rolling resistance and air drag.
 	local anyContact = s.FrontContact or s.RearContact
 	if anyContact then
