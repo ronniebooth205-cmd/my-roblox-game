@@ -45,7 +45,7 @@ groundParams.CollisionGroup = "BikeRay"
 
 local SAMPLE_INTERVAL = 0.25
 local SAMPLE_HISTORY = 180 -- seconds
-local POSES = { "Seated", "Standing", "OneHand", "NoHands", "LegOut", "Crashed" }
+local POSES = { "Seated", "Standing", "OneHand", "NoHands", "LegOut", "Hype", "Crashed" }
 local RIDER_ROOT_HEIGHT_R15 = 1.1
 local RIDER_ROOT_HEIGHT_R6 = 1.5
 
@@ -607,8 +607,17 @@ local function onBikeState(player: Player, payload: any)
 	model:SetAttribute("Lean", num(payload.Lean, -1, 1))
 	model:SetAttribute("Brake", num(payload.Brake, 0, 1))
 	model:SetAttribute("Wheelie", payload.Wheelie == true)
-	if type(payload.Pose) == "string" and table.find(POSES, payload.Pose) and model:GetAttribute("Crashed") ~= true then
-		model:SetAttribute("Pose", payload.Pose)
+	-- Poses combine ("Standing,OneHand"); every part must be a known pose.
+	if type(payload.Pose) == "string" and #payload.Pose <= 64 and model:GetAttribute("Crashed") ~= true then
+		local valid = true
+		for part in payload.Pose:gmatch("[^,]+") do
+			if not table.find(POSES, part) then
+				valid = false
+			end
+		end
+		if valid then
+			model:SetAttribute("Pose", payload.Pose)
+		end
 	end
 end
 

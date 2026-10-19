@@ -20,7 +20,6 @@ export type InputState = {
 	Lean: number, -- -1 (forward) .. 1 (back)
 	RearBrake: number, -- 0..1
 	WheelieMode: boolean, -- toggled with Lean back: the rider sits back so W lifts the front
-	Held: { [string]: boolean }, -- trick buttons currently held
 }
 
 InputController.state = {
@@ -30,7 +29,6 @@ InputController.state = {
 	Lean = 0,
 	RearBrake = 0,
 	WheelieMode = false,
-	Held = {},
 } :: InputState
 
 local actionListeners: { (action: string) -> () } = {}
@@ -44,8 +42,11 @@ local deviceListeners: { (device: string) -> () } = {}
 
 -- Analogue riding actions (held) and one-shot actions (pressed).
 -- Lean back is a toggle (wheelie mode), not held, so it isn't in this list.
-local HELD_ACTIONS = { "Throttle", "Brake", "SteerLeft", "SteerRight", "LeanForward", "RearBrake", "Trick1", "Trick2", "Trick3", "Trick4" }
-local PRESS_ACTIONS = { "LeanBack", "Mount", "Recover", "Camera", "Headlight", "Garage", "Map", "Tricks" }
+-- Tricks are toggles too (press on, press off).
+local HELD_ACTIONS = { "Throttle", "Brake", "SteerLeft", "SteerRight", "LeanForward", "RearBrake" }
+local PRESS_ACTIONS = { "LeanBack", "Trick1", "Trick2", "Trick3", "Trick4", "Trick5", "Mount", "Recover", "Camera", "Headlight", "Garage", "Map", "Tricks" }
+-- Riding-only presses: off the bike these keys keep their normal jobs (1-5 equip tools, Shift).
+local RIDING_ONLY = { LeanBack = true, Trick1 = true, Trick2 = true, Trick3 = true, Trick4 = true, Trick5 = true }
 
 local GAMEPAD_PRESS: { [Enum.KeyCode]: string } = {
 	[Enum.KeyCode.ButtonX] = "Mount",
@@ -104,9 +105,6 @@ local function recompute()
 	local touchLean = -(touch.LeanForward or 0)
 	s.Lean = math.clamp(kbLean + pad.StickY + touchLean, -1, 1)
 	s.RearBrake = math.clamp(math.max(kbRear, pad.RearBrake, touch.RearBrake or 0), 0, 1)
-	for _, trick in { "Trick1", "Trick2", "Trick3", "Trick4" } do
-		s.Held[trick] = keyboard[trick] == true or (touch[trick] or 0) > 0.5
-	end
 end
 
 local function deadzone(x: number): number
@@ -144,10 +142,10 @@ end
 local function onPress(actionName: string, inputState: Enum.UserInputState, _input: InputObject): Enum.ContextActionResult
 	if inputState == Enum.UserInputState.Begin then
 		local action = actionName:gsub("^Press_", "")
+		if RIDING_ONLY[action] and not riding then
+			return Enum.ContextActionResult.Pass
+		end
 		if action == "LeanBack" then
-			if not riding then
-				return Enum.ContextActionResult.Pass
-			end
 			InputController.setWheelieMode(not InputController.state.WheelieMode)
 		end
 		fire(action)
@@ -172,7 +170,9 @@ local function onGamepad(_actionName: string, inputState: Enum.UserInputState, i
 	elseif key == Enum.KeyCode.ButtonA then
 		pad.RearBrake = if active then 1 else 0
 	elseif key == Enum.KeyCode.ButtonR1 then
-		fire(if active then "TrickHeld" else "TrickReleased")
+		if inputState == Enum.UserInputState.Begin then
+			fire("TrickToggle")
+		end
 	elseif inputState == Enum.UserInputState.Begin and GAMEPAD_PRESS[key] then
 		if GAMEPAD_PRESS[key] == "LeanBack" and riding then
 			InputController.setWheelieMode(not InputController.state.WheelieMode)
@@ -252,7 +252,7 @@ function InputController.setRiding(isRiding: boolean)
 end
 
 -- Touch buttons (MobileControls) write here: action is one of Throttle, Brake, SteerLeft,
--- SteerRight, LeanForward, RearBrake, Trick1..Trick4. (Lean back is the wheelie-mode toggle.)
+-- SteerRight, LeanForward, RearBrake. (Wheelie mode and tricks are toggles.)
 function InputController.setTouch(action: string, value: number)
 	touch[action] = value
 	setDevice("Touch")

@@ -154,6 +154,14 @@ local function buildSpeedometer()
 	})
 	corner(mode, Theme.Radius.Pill)
 	elements.WheelieMode = mode
+	-- Tricks currently switched on, above the wheelie-mode pill.
+	elements.ActiveTricks = Components.text(gauge, "", 14, C.Gold, Theme.Fonts.Display, {
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 0, -44),
+		Size = UDim2.fromOffset(320, 18),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		TextStrokeTransparency = 0.5,
+	})
 end
 
 local function buildBikeInfo()
@@ -456,6 +464,15 @@ function HUD.init(screen: ScreenGui, handlers: { [string]: () -> () })
 		if on then
 			HUD.toast("Wheelie mode ON: W lifts the front, rear brake brings it down", "Info")
 		end
+	end)
+	TrickController.onToggled(function()
+		local names = {}
+		for _, trick in TrickController.inputTricks() do
+			if TrickController.isActive(trick.Id) then
+				table.insert(names, trick.Name:upper())
+			end
+		end
+		elements.ActiveTricks.Text = table.concat(names, " + ")
 	end)
 	TrickController.onLanded(function(trick)
 		HUD.trickLanded(trick.Name, trick.Points)

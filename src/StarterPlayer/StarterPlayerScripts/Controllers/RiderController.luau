@@ -4,11 +4,11 @@
 -- hands to the grips and feet to the pegs; this layers body language on top by offsetting the
 -- R15 joints' C0 (locally, so it never replicates or fights the physics):
 --   lean forward/back with the lean input, crouch over the bars when braking, stand on the
---   pegs, one hand or both hands off, swing a leg out.
+--   pegs, one hand or both hands off, swing a leg out, and the standing hype dance.
 -- Your own pose comes straight from TrickController/BikeController; other riders' poses come
 -- from the Pose/Lean attributes the server relays. Original C0s are restored on dismount.
 -- R6 avatars keep the default seated pose.
--- Replace or extend `POSES` to plug in authored animations later.
+-- Extend `FLAGS` (or swap `apply` for AnimationTracks) to plug in authored animations later.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -27,15 +27,18 @@ type Rider = {
 	Pose: string,
 }
 
--- Per-pose targets: root lift, torso pitch, and which limbs leave their IK target.
-local POSES: { [string]: { Lift: number, Pitch: number, LeftHand: boolean, RightHand: boolean, LeftFoot: boolean } } = {
-	Seated = { Lift = 0, Pitch = 0, LeftHand = true, RightHand = true, LeftFoot = true },
-	Standing = { Lift = 1.1, Pitch = -12, LeftHand = true, RightHand = true, LeftFoot = true },
-	OneHand = { Lift = 0, Pitch = 4, LeftHand = true, RightHand = false, LeftFoot = true },
-	NoHands = { Lift = 0.2, Pitch = 10, LeftHand = false, RightHand = false, LeftFoot = true },
-	LegOut = { Lift = 0.1, Pitch = 0, LeftHand = true, RightHand = true, LeftFoot = false },
-	Crashed = { Lift = 0, Pitch = 0, LeftHand = false, RightHand = false, LeftFoot = false },
+-- Poses arrive as comma-separated flags ("Standing,OneHand"), so moves combine. Each flag
+-- adds to the targets below: root lift, torso pitch, and which limbs leave their IK target.
+local FLAGS: { [string]: { Lift: number?, Pitch: number?, RightHand: boolean?, LeftHand: boolean?, LeftFoot: boolean? } } = {
+	Standing = { Lift = 1.1, Pitch = -12 },
+	OneHand = { Pitch = 4, RightHand = false },
+	NoHands = { Lift = 0.2, Pitch = 10, RightHand = false, LeftHand = false },
+	LegOut = { Lift = 0.1, LeftFoot = false },
+	-- Hype dance: stood up, bouncing to a beat with the right fist pumping (see `apply`).
+	Hype = { Lift = 1.0, Pitch = -8, RightHand = false },
+	Crashed = { RightHand = false, LeftHand = false, LeftFoot = false },
 }
+local HYPE_BPM = 128
 
 local riders: { [Model]: Rider } = {}
 
@@ -64,7 +67,7 @@ local function riderFor(character: Model): Rider?
 			joints[key] = { Joint = motor, Original = motor.C0 }
 		end
 	end
-	local rider: Rider = { Character = character, Joints = joints, Blend = { Lift = 0, Pitch = 0, Lean = 0, RightArm = 0, LeftArm = 0, Leg = 0 }, Pose = "Seated" }
+	local rider: Rider = { Character = character, Joints = joints, Blend = { Lift = 0, Pitch = 0, Lean = 0, RightArm = 0, LeftArm = 0, Leg = 0, Hype = 0 }, Pose = "Seated" }
 	riders[character] = rider
 	return rider
 end
@@ -94,24 +97,48 @@ local function setIK(character: Model, name: string, enabled: boolean)
 end
 
 local function apply(rider: Rider, pose: string, lean: number, braking: number, dt: number)
-	local target = POSES[pose] or POSES.Seated
+	local lift, pitch = 0, 0
+	local rightHand, leftHand, leftFoot = true, true, true
+	local hype = false
+	local standing = false
+	for flag in pose:gmatch("[^,]+") do
+		local f = FLAGS[flag]
+		if f then
+			lift = math.max(lift, f.Lift or 0)
+			pitch += f.Pitch or 0
+			rightHand = rightHand and f.RightHand ~= false
+			leftHand = leftHand and f.LeftHand ~= false
+			leftFoot = leftFoot and f.LeftFoot ~= false
+		end
+		hype = hype or flag == "Hype"
+		standing = standing or flag == "Standing" or flag == "Hype"
+	end
 	local k = 1 - math.exp(-dt / 0.12)
 	local b = rider.Blend
-	b.Lift += (target.Lift - b.Lift) * k
-	b.Pitch += (target.Pitch + braking * -10 - (if pose == "Standing" then 0 else 6) - lean * 14 - b.Pitch) * k
-	b.RightArm += ((if target.RightHand then 0 else 1) - b.RightArm) * k
-	b.LeftArm += ((if target.LeftHand then 0 else 1) - b.LeftArm) * k
-	b.Leg += ((if target.LeftFoot then 0 else 1) - b.Leg) * k
+	b.Lift += (lift - b.Lift) * k
+	b.Pitch += (pitch + braking * -10 - (if standing then 0 else 6) - lean * 14 - b.Pitch) * k
+	b.RightArm += ((if rightHand then 0 else 1) - b.RightArm) * k
+	b.LeftArm += ((if leftHand then 0 else 1) - b.LeftArm) * k
+	b.Leg += ((if leftFoot then 0 else 1) - b.Leg) * k
+	b.Hype += ((if hype then 1 else 0) - b.Hype) * k
+	-- The dance: knees bounce on every beat, the body sways side to side every two beats, and
+	-- the right fist pumps up on the beat.
+	local beat = os.clock() * HYPE_BPM / 60 * math.pi * 2
+	local bounce = math.abs(math.sin(beat / 2)) * 0.35 * b.Hype
+	local sway = math.sin(beat / 4) * math.rad(10) * b.Hype
+	local pump = (0.5 + 0.5 * math.sin(beat)) * math.rad(40) * b.Hype
 	local j = rider.Joints
 	if j.Root then
-		j.Root.Joint.C0 = j.Root.Original * CFrame.new(0, b.Lift, -b.Lift * 0.2)
+		j.Root.Joint.C0 = j.Root.Original * CFrame.new(0, b.Lift - bounce, -b.Lift * 0.2) * CFrame.Angles(0, 0, sway)
 	end
 	if j.Waist then
 		-- Positive rotation about X tips the torso back; forward lean is negative.
-		j.Waist.Joint.C0 = j.Waist.Original * CFrame.Angles(math.rad(b.Pitch), 0, 0)
+		j.Waist.Joint.C0 = j.Waist.Original * CFrame.Angles(math.rad(b.Pitch), sway * 0.6, -sway * 0.5)
 	end
 	if j.RightShoulder then
-		j.RightShoulder.Joint.C0 = j.RightShoulder.Original * CFrame.Angles(0, 0, math.rad(95 * b.RightArm))
+		-- Hands-off raises the arm out to the side; the dance lifts it overhead and pumps.
+		local raise = math.rad(95) * b.RightArm + (math.rad(60) + pump) * b.Hype
+		j.RightShoulder.Joint.C0 = j.RightShoulder.Original * CFrame.Angles(0, 0, raise)
 	end
 	if j.LeftShoulder then
 		j.LeftShoulder.Joint.C0 = j.LeftShoulder.Original * CFrame.Angles(0, 0, math.rad(-95 * b.LeftArm))

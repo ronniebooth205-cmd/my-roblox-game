@@ -58,6 +58,7 @@ GameConfig.DefaultKeybinds = {
 	Trick2 = "Two",
 	Trick3 = "Three",
 	Trick4 = "Four",
+	Trick5 = "Five",
 }
 
 GameConfig.Camera = {

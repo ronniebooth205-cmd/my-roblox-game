@@ -1,7 +1,7 @@
 --!strict
 -- ReplicatedStorage > Shared > TrickDefinitions (ModuleScript)
--- Wheelie tricks. Input tricks are held with a key/button; Auto tricks are detected from how
--- the wheelie is ridden. A trick only scores once its conditions have held for `HoldTime`.
+-- Wheelie tricks. Input tricks are toggled with a key/button (and can be combined); Auto
+-- tricks are detected from how the wheelie is ridden. A trick only scores once its conditions have held for `HoldTime`.
 -- The server re-checks every submitted trick against these rules (TrickService).
 --   AssistPenalty: how much balance assist the pose takes away (harder to balance one-handed).
 --   Pose: rider pose name used by RiderController.
@@ -97,6 +97,21 @@ local list: { Trick } = {
 		Pose = "LegOut",
 		AssistPenalty = 0.2,
 		Description = "Swing a leg out to the side.",
+	},
+	{
+		Id = "Hype",
+		Name = "Hype Dance",
+		Input = "Trick5",
+		MinAngle = 15,
+		MaxAngle = 70,
+		MinSpeed = 4,
+		MaxSpeed = math.huge,
+		HoldTime = 1.5,
+		Points = 450,
+		Cooldown = 5,
+		Pose = "Hype",
+		AssistPenalty = 0.25,
+		Description = "Stand up and bounce to the beat with a fist in the air.",
 	},
 	{
 		Id = "SlowBalance",

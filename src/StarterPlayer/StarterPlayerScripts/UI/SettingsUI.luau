@@ -72,7 +72,7 @@ local function render()
 
 	if UserInputService.KeyboardEnabled then
 		section("KEYBOARD (click a key, then press the new one)", nextOrder())
-		for _, action in { "Throttle", "Brake", "SteerLeft", "SteerRight", "LeanBack", "LeanForward", "RearBrake", "Mount", "Recover", "Camera", "Headlight", "Garage", "Map", "Tricks", "Trick1", "Trick2", "Trick3", "Trick4" } do
+		for _, action in { "Throttle", "Brake", "SteerLeft", "SteerRight", "LeanBack", "LeanForward", "RearBrake", "Mount", "Recover", "Camera", "Headlight", "Garage", "Map", "Tricks", "Trick1", "Trick2", "Trick3", "Trick4", "Trick5" } do
 			local row = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 44), LayoutOrder = nextOrder(), Parent = content })
 			Components.text(row, action:gsub("(%l)(%u)", "%1 %2"), Theme.TextSize.Body, C.Text, Theme.Fonts.Heading, { Size = UDim2.new(0.6, 0, 1, 0) })
 			Components.button(row, if capturing == action then "PRESS A KEY…" else InputController.keyName(action), if capturing == action then "Primary" else "Secondary", function()

@@ -101,9 +101,9 @@ end
 local function tricks()
 	local device = InputController.device()
 	Components.text(content, if device == "Keyboard"
-		then "Pop a wheelie (hold throttle + lean back), then hold a trick key."
-		elseif device == "Gamepad" then "Pick a trick with the D-pad, hold RB during a wheelie."
-		else "Pick a trick with the selector, hold TRICK during a wheelie.", 14, C.TextMuted, Theme.Fonts.Body, { LayoutOrder = 0, Size = UDim2.new(1, 0, 0, 36) })
+		then "Tricks are toggles: press a trick key to start the move, press it again to stop. Combine them!"
+		elseif device == "Gamepad" then "Pick a trick with the D-pad, press RB to switch it on or off."
+		else "Pick a trick with the selector, tap TRICK to switch it on or off.", 14, C.TextMuted, Theme.Fonts.Body, { LayoutOrder = 0, Size = UDim2.new(1, 0, 0, 36) })
 	for i, trick in TrickDefinitions.List do
 		local frame = card(i, 74)
 		local how = if trick.Input == "Auto" then "AUTO" elseif device == "Keyboard" then "[" .. InputController.keyName(trick.Input) .. "]" else "TRICK"

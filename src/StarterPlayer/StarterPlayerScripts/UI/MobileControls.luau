@@ -21,6 +21,7 @@ local new = Components.new
 local root: Frame
 local ridingGroup: Frame
 local trickLabel: TextButton? = nil
+local trickButtonRef: TextButton? = nil
 local leftHanded = false
 local utilityGrid: Frame? = nil
 local buttons: { { Button: TextButton, Spec: { [string]: any } } } = {}
@@ -137,17 +138,14 @@ function MobileControls.init(screen: ScreenGui)
 		Parent = ridingGroup,
 	})
 	Components.corner(trickButton, Theme.Radius.Pill)
-	trickButton.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-			InputController.firePress("TrickHeld")
-			local connection: RBXScriptConnection
-			connection = input:GetPropertyChangedSignal("UserInputState"):Connect(function()
-				if input.UserInputState == Enum.UserInputState.End or input.UserInputState == Enum.UserInputState.Cancel then
-					connection:Disconnect()
-					InputController.firePress("TrickReleased")
-				end
-			end)
-		end
+	-- Tap to toggle the selected trick on/off (all tricks are toggles).
+	trickButton.Activated:Connect(function()
+		InputController.firePress("TrickToggle")
+		task.defer(MobileControls.refreshTrick)
+	end)
+	trickButtonRef = trickButton
+	TrickController.onToggled(function()
+		MobileControls.refreshTrick()
 	end)
 	table.insert(buttons, { Button = trickButton, Spec = trickSpec })
 	-- Wheelie mode is a tap-to-toggle switch, lit while on.
@@ -194,8 +192,14 @@ function MobileControls.init(screen: ScreenGui)
 end
 
 function MobileControls.refreshTrick()
+	local trick = TrickController.selectedTrick()
+	local on = TrickController.isActive(trick.Id)
 	if trickLabel then
-		trickLabel.Text = "◆ " .. TrickController.selectedTrick().Name:upper()
+		trickLabel.Text = "◆ " .. trick.Name:upper()
+	end
+	if trickButtonRef then
+		trickButtonRef.Text = if on then "TRICK\nON" else "TRICK"
+		trickButtonRef.BackgroundTransparency = if on then 0 else 0.15
 	end
 end
 
