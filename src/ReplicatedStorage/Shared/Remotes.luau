@@ -10,7 +10,7 @@ local RunService = game:GetService("RunService")
 local Remotes = {}
 
 local DEFINITIONS: { [string]: string } = {
-	-- client -> server: ("Spawn" | "Despawn" | "Mount" | "Dismount" | "Recover" | "Crash" | "Headlight", ...)
+	-- client -> server: ("Spawn" | "Despawn" | "Mount" | "Release" | "Dismount" | "Recover" | "Crash" | "Headlight", ...)
 	BikeAction = "RemoteEvent",
 	-- client -> server, ~10 Hz: steering/throttle/lean/pose for other players' visuals and audio
 	BikeState = "UnreliableRemoteEvent",
