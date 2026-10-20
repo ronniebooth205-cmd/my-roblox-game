@@ -115,6 +115,10 @@ end
 -- it back in place whatever scale it came in at. The meshes are modelled on the standard 4-stud
 -- wheelbase; bikes with other geometry stretch them lengthways (L) and move them with the ground.
 local STANDARD_GROUND_Y = -(1.3 + 0.9 - 0.3) - 1.05
+-- Studio's OBJ importer brings the meshes in facing backwards (seen in the first playtest: the
+-- side covers sat over the rear wheel), so they're turned round. The body is symmetric side to
+-- side, so a half turn about Y is the same as flipping front and back.
+local IMPORT_ROTATION = CFrame.Angles(0, math.pi, 0)
 local function bodyMesh(parent: Instance, source: MeshPart, name: string, L: number, groundY: number, colour: Color3, material: Enum.Material?): MeshPart
 	local layout = BikeMeshLayout.Meshes[name]
 	local centre = layout.Centre
@@ -125,7 +129,7 @@ local function bodyMesh(parent: Instance, source: MeshPart, name: string, L: num
 	part.Name = "Body" .. name
 	part.TextureID = ""
 	part.Size = Vector3.new(size.X, size.Y, size.Z * L)
-	part.CFrame = CFrame.new(centre.X, centre.Y + groundY - STANDARD_GROUND_Y, centre.Z * L)
+	part.CFrame = CFrame.new(centre.X, centre.Y + groundY - STANDARD_GROUND_Y, centre.Z * L) * IMPORT_ROTATION
 	part.Color = colour
 	part.Material = material or Enum.Material.SmoothPlastic
 	part.Anchored = false
