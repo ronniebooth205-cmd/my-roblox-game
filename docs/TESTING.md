@@ -33,8 +33,6 @@ Look at the Output window for `[ServerMain] ... server ready` and any red errors
 
 ### Wheelies
 - [ ] W alone doesn't wheelie; W + Left Shift lifts the front.
-- [ ] Holding a wheelie with no steering keeps going straight (it used to drift off to the side);
-      A/D still turn it, and it holds the new direction when you let go.
 - [ ] The rear wheel stays down and the bike keeps moving while on one wheel.
 - [ ] Feathering W holds the green zone on the balance meter.
 - [ ] Space brings the front down; the landing is soft.
