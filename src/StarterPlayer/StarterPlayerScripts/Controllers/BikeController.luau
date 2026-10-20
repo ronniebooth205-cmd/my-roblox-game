@@ -11,7 +11,8 @@
 --   3. Wheelie pitch torques: motor torque (stronger when leaning back), rider weight shift,
 --      rear brake, a configurable balance assist, and damping. Gravity pulls the nose back
 --      down through the real contact geometry; nothing holds the bike at a fixed angle.
---   4. Steering via a yaw-rate controller and a roll controller that leans into turns.
+--   4. Steering via a yaw-rate controller and a roll controller that leans into turns. In a
+--      wheelie with the bars straight it also holds the direction the wheelie started in.
 --   5. Crash checks: looping out, tipping over, or a hard impact.
 -- See PhysicsConfig for the reasoning behind the numbers.
 
@@ -97,6 +98,7 @@ local assistPenalty = 0
 local assistSetting = 1
 local previousVelocity = Vector3.zero
 local loopOutTimer = 0
+local holdHeading: number? = nil -- wheelie direction to keep while the bars are straight
 local inputEnabled = true
 
 castParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -416,6 +418,17 @@ local function step(dt: number)
 		-- the bars still feel responsive with the front wheel in the air.
 		local steerAngle = if s.InWheelie then steerTarget * math.rad(h.MaxSteerAngle) / (1 + math.abs(groundSpeed) / (h.SteerFalloffSpeed * 1.5)) else s.SteerAngle
 		local targetYawRate = -(groundSpeed * math.tan(steerAngle) / g.Wheelbase) * steerFactor
+		-- On one wheel nothing else keeps the bike pointing the same way, so any knock (the pop,
+		-- a lean correction, a seam in the road) left it heading off to the side for good. With
+		-- the bars straight, steer back to the direction the wheelie started in, like a rider would.
+		if s.InWheelie and math.abs(steerTarget) < 0.05 then
+			local headingAngle = math.atan2(-heading.X, -heading.Z)
+			holdHeading = holdHeading or headingAngle
+			local drift = ((holdHeading :: number) - headingAngle + math.pi) % (2 * math.pi) - math.pi
+			targetYawRate += h.WheelieHeadingHold * drift
+		else
+			holdHeading = nil
+		end
 		netTorque += groundNormal * inertiaYaw * h.YawGain * (targetYawRate - yawRate)
 	else
 		netTorque -= groundNormal * inertiaYaw * 2 * yawRate
@@ -477,6 +490,7 @@ function BikeController.start(model: Model, stats: BikeStats.Stats, settingsAssi
 	assistSetting = settingsAssist or 1
 	previousVelocity = part.AssemblyLinearVelocity
 	loopOutTimer = 0
+	holdHeading = nil
 	for _, wheel in wheels do
 		wheel.Compression, wheel.PrevCompression, wheel.Load = 0, 0, 0
 	end

@@ -29,6 +29,11 @@ All numbers are in studs and seconds; 1 stud = 0.32 m (`GameConfig.Units`).
 - **Steering.** A yaw-rate controller follows the bicycle model (`v·tan(steer)/wheelbase`),
   steering angle shrinks with speed, and a roll controller leans the bike into turns
   (`atan(v·yawRate/g)`). Steering keeps 55% authority on one wheel.
+- **Wheelie heading hold.** On one wheel the yaw controller only damps turning, so any knock (the
+  pop, a lean correction) used to leave the bike pointing off to the side. With the bars straight
+  it now steers back to the direction the wheelie started in (`WheelieHeadingHold`, per second).
+  Steering clears it. Checked with a 3D replay of the controller (a roll kick of 4 rad/s turned
+  the bike 16° and it ran 30 studs sideways; with the hold it comes back to 0°).
 
 ## Wheelies
 
