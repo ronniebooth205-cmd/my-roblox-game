@@ -16,11 +16,19 @@
 --   RearWheel    Motor6D "RearWheelJoint" (moves with suspension and spins)
 -- The joints' Transforms are animated on every client by BikeVisuals; physics never touches
 -- them, so the visuals can't destabilise the simulation.
+--
+-- Body meshes: if ReplicatedStorage has a "BikeMeshes" folder holding the Surron-style meshes
+-- from tools/blender (Frame, BatteryCover, Plastics, Seat, Mudguards), they replace the
+-- part-built frame, battery, plastics, seat and rear mudguard. Without it the bike is built from
+-- parts as before. See docs/BIKE_MESHES.md.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local CustomisationConfig = require(script.Parent.CustomisationConfig)
 local BikeDefinitions = require(script.Parent.BikeDefinitions)
 local BikeStats = require(script.Parent.BikeStats)
 local PhysicsConfig = require(script.Parent.PhysicsConfig)
+local BikeMeshLayout = require(script.Parent.BikeMeshLayout)
 
 local BikeBuilder = {}
 
@@ -83,6 +91,51 @@ end
 -- A disc whose flat faces point along X (wheels, discs, sprockets).
 local function disc(parent: Instance, name: string, centre: Vector3, radius: number, width: number, colour: Color3, material: Enum.Material?): Part
 	return newPart(parent, name, Vector3.new(width, radius * 2, radius * 2), CFrame.new(centre), colour, material, Enum.PartType.Cylinder)
+end
+
+-- The imported body meshes, or nil unless every one in the layout is there (a half-imported set
+-- would leave holes in the bike, so it's all or nothing).
+local function findBodyMeshes(): { [string]: MeshPart }?
+	local folder = ReplicatedStorage:FindFirstChild("BikeMeshes")
+	if not folder then
+		return nil
+	end
+	local found: { [string]: MeshPart } = {}
+	for name in BikeMeshLayout.Meshes do
+		local mesh = folder:FindFirstChild(name :: string, true)
+		if not (mesh and mesh:IsA("MeshPart")) then
+			return nil
+		end
+		found[name :: string] = mesh
+	end
+	return found
+end
+
+-- Studio's importer centres each mesh on its bounding box, so the layout's centre and size put
+-- it back in place whatever scale it came in at. The meshes are modelled on the standard 4-stud
+-- wheelbase; bikes with other geometry stretch them lengthways (L) and move them with the ground.
+local STANDARD_GROUND_Y = -(1.3 + 0.9 - 0.3) - 1.05
+local function bodyMesh(parent: Instance, source: MeshPart, name: string, L: number, groundY: number, colour: Color3, material: Enum.Material?): MeshPart
+	local layout = BikeMeshLayout.Meshes[name]
+	local centre = layout.Centre
+	local size = layout.Size
+	local part = source:Clone()
+	part:ClearAllChildren() -- drop any SurfaceAppearance the importer added, so paint shows
+	-- "Body" prefix: the rider's Seat is found by name, so the seat mesh mustn't be called "Seat".
+	part.Name = "Body" .. name
+	part.TextureID = ""
+	part.Size = Vector3.new(size.X, size.Y, size.Z * L)
+	part.CFrame = CFrame.new(centre.X, centre.Y + groundY - STANDARD_GROUND_Y, centre.Z * L)
+	part.Color = colour
+	part.Material = material or Enum.Material.SmoothPlastic
+	part.Anchored = false
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.Massless = true
+	part.CastShadow = true
+	part.Parent = parent
+	return part
 end
 
 local function weldTo(part: BasePart, target: BasePart)
@@ -223,14 +276,17 @@ function BikeBuilder.build(bikeId: string, setupIn: BikeStats.BikeSetup?, option
 	end
 
 	------------------------------------------------------------------ frame and body
+	local meshes = findBodyMeshes()
 	local style = def.Style
 	local batterySize = if style.BodyShape == "Bulky"
 		then Vector3.new(0.82, 1.2, 1.7)
 		elseif style.BodyShape == "Slim" then Vector3.new(0.66, 0.95, 1.45)
 		elseif style.BodyShape == "MX" then Vector3.new(0.7, 1.0, 1.5)
 		else Vector3.new(0.72, 1.05, 1.55)
-	local headTopH = if style.FrameShape == "Tall" then 3.1 elseif style.FrameShape == "MX" then 3.15 else 3.0
-	local seatH = if style.FrameShape == "MX" then 3.1 else 3.0
+	-- The mesh body is modelled on the Standard frame, so the head and seat must match it.
+	local frameShape = if meshes then "Standard" else style.FrameShape
+	local headTopH = if frameShape == "Tall" then 3.1 elseif frameShape == "MX" then 3.15 else 3.0
+	local seatH = if frameShape == "MX" then 3.1 else 3.0
 
 	-- Steering axis: from the front axle up to the head, raked back ~18°.
 	local rake = math.rad(18.5)
@@ -241,44 +297,61 @@ function BikeBuilder.build(bikeId: string, setupIn: BikeStats.BikeSetup?, option
 
 	-- Twin main spars from the head down to the swingarm pivot, and top rails to the tail.
 	local pivot = P(0, 0.6, 1.3)
-	for _, side in { -1, 1 } do
+	if meshes then
+		body(bodyMesh(model, meshes.Frame, "Frame", L, groundY, frameColour, frameMaterial or Enum.Material.Metal))
+		body(bodyMesh(model, meshes.BatteryCover, "BatteryCover", L, groundY, batteryColour, batteryMaterial))
+		body(bodyMesh(model, meshes.Plastics, "Plastics", L, groundY, plasticColour, plasticMaterial))
+		body(bodyMesh(model, meshes.Seat, "Seat", L, groundY, seatColour, if setup.Options.SeatDesign == "Gripper" then Enum.Material.Fabric else (seatMaterial or Enum.Material.Leather)))
+		body(bodyMesh(model, meshes.Mudguards, "Mudguards", L, groundY, guardColour, guardMaterial))
+	end
+	local partSides: { number } = if meshes then {} else { -1, 1 }
+	for _, side in partSides do
 		body(beam(model, "FrameSpar", headBottom + Vector3.new(side * 0.34, 0, 0), pivot + Vector3.new(side * 0.36, 0.1, 0), 0.16, 0.42, frameColour, frameMaterial or Enum.Material.Metal))
 		body(beam(model, "FrameTopRail", headTop + Vector3.new(side * 0.26, -0.08, 0.05), P(side * 0.3, -0.15, seatH - 0.3), 0.12, 0.2, frameColour, frameMaterial or Enum.Material.Metal))
 		body(beam(model, "Subframe", P(side * 0.3, -0.15, seatH - 0.3), P(side * 0.28, 1.95, seatH - 0.28), 0.1, 0.14, frameColour, frameMaterial or Enum.Material.Metal))
 		body(beam(model, "SubframeStay", pivot + Vector3.new(side * 0.32, 0.25, 0.1), P(side * 0.28, 1.3, seatH - 0.3), 0.08, 0.1, frameColour, frameMaterial or Enum.Material.Metal))
 	end
-	body(tube(model, "HeadTube", headBottom - axisUp * 0.1, headTop + axisUp * 0.05, 0.17, frameColour, frameMaterial or Enum.Material.Metal))
-
 	local batteryCentre = P(0, -0.45, 1.6 + batterySize.Y / 2)
-	body(newPart(model, "Battery", batterySize, CFrame.new(batteryCentre), batteryColour, batteryMaterial or Enum.Material.SmoothPlastic))
-	body(newPart(model, "BatteryLid", Vector3.new(batterySize.X + 0.04, 0.08, batterySize.Z * 0.9), CFrame.new(batteryCentre + Vector3.new(0, batterySize.Y / 2, 0)), METAL_DARK, Enum.Material.Metal))
+	if not meshes then
+		body(tube(model, "HeadTube", headBottom - axisUp * 0.1, headTop + axisUp * 0.05, 0.17, frameColour, frameMaterial or Enum.Material.Metal))
+		body(newPart(model, "Battery", batterySize, CFrame.new(batteryCentre), batteryColour, batteryMaterial or Enum.Material.SmoothPlastic))
+		body(newPart(model, "BatteryLid", Vector3.new(batterySize.X + 0.04, 0.08, batterySize.Z * 0.9), CFrame.new(batteryCentre + Vector3.new(0, batterySize.Y / 2, 0)), METAL_DARK, Enum.Material.Metal))
+	end
 	body(newPart(model, "Controller", Vector3.new(0.5, 0.28, 0.7), CFrame.new(P(0, 0.35, 2.3)), Color3.fromRGB(20, 20, 22), Enum.Material.Metal))
 	body(disc(model, "MotorHousing", P(0, 0.55, 1.35), 0.38, 0.56, METAL_DARK, Enum.Material.Metal))
 	body(disc(model, "MotorCap", P(-0.3, 0.55, 1.35), 0.26, 0.06, METAL_LIGHT, Enum.Material.Metal))
 	body(newPart(model, "Skidplate", Vector3.new(0.7, 0.08, batterySize.Z + 0.2), CFrame.new(batteryCentre - Vector3.new(0, batterySize.Y / 2 + 0.06, 0)), METAL_LIGHT, Enum.Material.Metal))
 
 	-- Side plastics wrapping the top of the battery, plus the tail section.
-	for _, side in { -1, 1 } do
+	for _, side in partSides do
 		local panelCf = CFrame.new(P(side * (batterySize.X / 2 + 0.05), -0.35, 2.45)) * CFrame.Angles(math.rad(-8), 0, 0)
 		body(newPart(model, "SidePanel", Vector3.new(0.06, 0.6, batterySize.Z + 0.25), panelCf, plasticColour, plasticMaterial))
 		body(newPart(model, "TailPanel", Vector3.new(0.06, 0.32, 1.5), CFrame.new(P(side * 0.32, 1.35, seatH - 0.35)) * CFrame.Angles(math.rad(6), 0, 0), plasticColour, plasticMaterial))
 	end
-	body(newPart(model, "FrontShroud", Vector3.new(batterySize.X + 0.2, 0.55, 0.35), CFrame.new(P(0, -1.18, 2.6)) * CFrame.Angles(math.rad(25), 0, 0), plasticColour, plasticMaterial))
+	if not meshes then
+		body(newPart(model, "FrontShroud", Vector3.new(batterySize.X + 0.2, 0.55, 0.35), CFrame.new(P(0, -1.18, 2.6)) * CFrame.Angles(math.rad(25), 0, 0), plasticColour, plasticMaterial))
+	end
 
 	-- Seat: long flat dirt-bike saddle.
 	local seatLength = 1.95
 	local seatCentre = P(0, 0.55, seatH - 0.12)
 	local seatMat = if setup.Options.SeatDesign == "Gripper" then Enum.Material.Fabric else (seatMaterial or Enum.Material.Leather)
-	body(newPart(model, "SeatPad", Vector3.new(0.62, 0.24, seatLength * L), CFrame.new(seatCentre), seatColour, seatMat))
+	if not meshes then
+		body(newPart(model, "SeatPad", Vector3.new(0.62, 0.24, seatLength * L), CFrame.new(seatCentre), seatColour, seatMat))
+	end
 	if setup.Options.SeatDesign == "Ribbed" then
+		-- The mesh saddle is narrower and sits a little higher than the part-built one.
+		local ribWidth, ribHeight = if meshes then 0.52 else 0.64, if meshes then 0.17 else 0.13
 		for i = -2, 2 do
-			body(newPart(model, "SeatRib", Vector3.new(0.64, 0.05, 0.06), CFrame.new(seatCentre + Vector3.new(0, 0.13, i * 0.3)), seatColour:Lerp(Color3.new(1, 1, 1), 0.2), Enum.Material.SmoothPlastic))
+			body(newPart(model, "SeatRib", Vector3.new(ribWidth, 0.05, 0.06), CFrame.new(seatCentre + Vector3.new(0, ribHeight, i * 0.3)), seatColour:Lerp(Color3.new(1, 1, 1), 0.2), Enum.Material.SmoothPlastic))
 		end
 	end
 
 	-- Tail / rear mudguard, tail light and number plate.
 	local tailEnd = P(0, 2.55, seatH - 0.35)
-	body(newPart(model, "RearMudguard", Vector3.new(0.5, 0.08, 1.4 * L), CFrame.new(P(0, 1.95, seatH - 0.3)) * CFrame.Angles(math.rad(-10), 0, 0), guardColour, guardMaterial))
+	if not meshes then
+		body(newPart(model, "RearMudguard", Vector3.new(0.5, 0.08, 1.4 * L), CFrame.new(P(0, 1.95, seatH - 0.3)) * CFrame.Angles(math.rad(-10), 0, 0), guardColour, guardMaterial))
+	end
 	local tailLight = body(newPart(model, "TailLight", Vector3.new(0.34, 0.14, 0.08), CFrame.new(tailEnd + Vector3.new(0, -0.02, 0.05)), Color3.fromRGB(120, 10, 10), Enum.Material.SmoothPlastic))
 	tailLight.CastShadow = false
 	local tailGlow = Instance.new("PointLight")
@@ -325,7 +398,8 @@ function BikeBuilder.build(bikeId: string, setupIn: BikeStats.BikeSetup?, option
 	local decal = setup.Options.Decal or "None"
 	local decalColour = Color3.new(1, 1, 1):Lerp(plasticColour, 0.1)
 	for _, side in { -1, 1 } do
-		local x = side * (batterySize.X / 2 + 0.09)
+		-- On the mesh body the decals sit on the side covers instead of the battery.
+		local x = if meshes then side * (BikeMeshLayout.PanelOuterX + 0.01) else side * (batterySize.X / 2 + 0.09)
 		if decal == "Stripe" then
 			body(newPart(model, "DecalStripe", Vector3.new(0.02, 0.1, batterySize.Z + 0.1), CFrame.new(P(x, -0.35, 2.45)) * CFrame.Angles(math.rad(-8), 0, 0), decalColour, Enum.Material.SmoothPlastic))
 		elseif decal == "Bolt" then

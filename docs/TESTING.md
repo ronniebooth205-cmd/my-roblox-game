@@ -33,6 +33,8 @@ Look at the Output window for `[ServerMain] ... server ready` and any red errors
 
 ### Wheelies
 - [ ] W alone doesn't wheelie; W + Left Shift lifts the front.
+- [ ] Holding a wheelie with no steering keeps going straight (it used to drift off to the side);
+      A/D still turn it, and it holds the new direction when you let go.
 - [ ] The rear wheel stays down and the bike keeps moving while on one wheel.
 - [ ] Feathering W holds the green zone on the balance meter.
 - [ ] Space brings the front down; the landing is soft.
@@ -80,6 +82,14 @@ Look at the Output window for `[ServerMain] ... server ready` and any red errors
 ### Performance
 - [ ] MicroProfiler / Stats: frame time with 6 riders; map part count (~6–8k parts).
 - [ ] Phone emulator at Low graphics: no dust or tyre marks, stable frame rate.
+
+### Surron-style body meshes (after importing them, see docs/BIKE_MESHES.md)
+- [ ] All four bikes show the mesh frame, side covers, seat and tail, lined up with the wheels,
+      forks, swingarm and head tube (check the MX Electric Pro too: it has a longer wheelbase).
+- [ ] Paint changes in the garage recolour the frame, plastics, battery cover, seat and mudguard.
+- [ ] Decals sit on the side covers; the ribbed seat option sits on the saddle.
+- [ ] The rider sits on the seat with feet on the pegs.
+- [ ] Remove one mesh from ReplicatedStorage.BikeMeshes: the bike falls back to the part-made body.
 
 ## Known gaps to check first
 

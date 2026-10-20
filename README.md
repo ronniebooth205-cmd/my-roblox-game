@@ -60,7 +60,8 @@ src/StarterPlayer/StarterPlayerScripts
   Controllers/                Input, Bike (physics), Wheelie, Trick, Camera, BikeVisuals, Rider, Audio, ClientState
   UI/                         Theme, Components, HUD, MobileControls, MainMenu, Garage, Shop, Settings, Progress, Map, Rideout, UIController
 tools/wheelie_sim.py          offline wheelie tuning check
-docs/                         SETUP, CONTROLS, PHYSICS, TESTING, UI
+tools/blender/                Blender script for the Surron-style body meshes (see docs/BIKE_MESHES.md)
+docs/                         SETUP, CONTROLS, PHYSICS, TESTING, UI, BIKE_MESHES
 ```
 
 ## Rules of the codebase
