@@ -110,7 +110,6 @@ PhysicsConfig.Handling = {
 	PitchDamping = 10, -- per second, while on the back wheel
 	GroundPitchDamping = 1.5,
 	WheelieSteerFactor = 0.8, -- steering authority on one wheel
-	WheelieHeadingHold = 3, -- per second: how quickly a wheelie with straight bars turns back on course
 	ThrottleResponse = 0.15, -- seconds for the throttle to follow the input
 	FallAngle = 80, -- loop out above this pitch
 	WheelieThreshold = 6, -- degrees of pitch that count as a wheelie
